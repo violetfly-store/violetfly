@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Violet Fly — Digital Products</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA_UZB3DcTWtV9XstyYB2OGtnLwwZ8KHW8",
+    authDomain: "violet-fly.firebaseapp.com",
+    projectId: "violet-fly",
+    storageBucket: "violet-fly.firebasestorage.app",
+    messagingSenderId: "949352702751",
+    appId: "1:949352702751:web:6db4121edb2528f31dc62a",
+    measurementId: "G-MQWS50426C"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  window._db = db;
+  window._collection = collection;
+  window._getDocs = getDocs;
+  window._onSnapshot = onSnapshot;
+
+  // Load products on start
+  window.addEventListener('DOMContentLoaded', () => {
+    loadProducts();
+  });
+
+  async function loadProducts() {
+    try {
+      const snap = await getDocs(collection(db, "products"));
+      const products = [];
+      snap.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+      window._firebaseProducts = products;
+      renderProducts(products);
+    } catch (err) {
+      console.error("Firebase load error:", err);
+      // Fallback to default products if Firebase fails
+      renderProducts(window._defaultProducts || []);
+    }
+  }
+  window._loadProducts = loadProducts;
+</script>
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<!-- Razorpay -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink:     #1A1523;
+    --violet:  #7C3AED;
+    --violet2: #5B21B6;
+    --lavender:#F3F0FF;
+    --gold:    #F59E0B;
+    --bg:      #FAFAF9;
+    --muted:   #6B7280;
+    --border:  #E5E1F0;
+    --white:   #ffffff;
+    --card-bg: #FFFFFF;
+  }
+
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(250,250,249,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 5vw;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 64px;
+  }
+  .nav-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+  .nav-brand .butterfly { font-size: 22px; animation: flutter 4s ease-in-out infinite; }
+  @keyframes flutter {
+    0%,100% { transform: rotate(-5deg) scale(1); }
+    50%      { transform: rotate(5deg) scale(1.08); }
+  }
+  .nav-brand span { font-family: 'Playfair Display', serif; font-size: 20px; color: var(--ink); letter-spacing: 0.02em; }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a { text-decoration: none; color: var(--muted); font-size: 14px; font-weight: 500; transition: color .2s; }
+  .nav-links a:hover { color: var(--violet); }
+  .nav-cta {
+    background: var(--violet); color: var(--white) !important;
+    padding: 8px 20px; border-radius: 100px;
+    font-size: 13px !important; font-weight: 600 !important;
+    transition: background .2s, transform .15s !important;
+  }
+  .nav-cta:hover { background: var(--violet2) !important; transform: translateY(-1px); }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+    padding: 120px 5vw 80px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: "🦋"; position: absolute;
+    font-size: clamp(200px, 40vw, 420px); opacity: 0.04;
+    top: 50%; left: 50%; transform: translate(-50%, -52%);
+    pointer-events: none; filter: grayscale(1);
+  }
+  .hero-content { position: relative; z-index: 1; max-width: 700px; }
+  .hero-eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--lavender); color: var(--violet);
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 6px 16px; border-radius: 100px; margin-bottom: 28px;
+  }
+  .hero h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(42px, 7vw, 80px); line-height: 1.08;
+    letter-spacing: -0.02em; color: var(--ink); margin-bottom: 20px;
+  }
+  .hero h1 em { font-style: italic; color: var(--violet); }
+  .hero p { font-size: 18px; color: var(--muted); max-width: 460px; margin: 0 auto 40px; font-weight: 300; line-height: 1.7; }
+  .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary {
+    background: var(--ink); color: var(--white);
+    padding: 14px 32px; border-radius: 100px;
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    transition: background .2s, transform .15s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-primary:hover { background: var(--violet); transform: translateY(-2px); }
+  .btn-outline {
+    background: transparent; color: var(--ink);
+    border: 1.5px solid var(--border);
+    padding: 14px 32px; border-radius: 100px;
+    font-size: 15px; font-weight: 500; text-decoration: none;
+    transition: border-color .2s, transform .15s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-outline:hover { border-color: var(--violet); color: var(--violet); transform: translateY(-2px); }
+
+  /* MARQUEE */
+  .marquee-wrap { background: var(--ink); padding: 14px 0; overflow: hidden; }
+  .marquee-track { display: flex; gap: 48px; animation: marquee 20s linear infinite; width: max-content; }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-item {
+    color: var(--white); font-size: 13px; font-weight: 500; letter-spacing: 0.06em;
+    text-transform: uppercase; white-space: nowrap; opacity: 0.8;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .marquee-dot { color: var(--gold); font-size: 8px; }
+
+  /* SECTION */
+  section { padding: 100px 5vw; }
+  .section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--violet); margin-bottom: 12px; }
+  .section-title { font-family: 'Playfair Display', serif; font-size: clamp(30px, 4vw, 48px); line-height: 1.15; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 16px; }
+  .section-sub { font-size: 16px; color: var(--muted); max-width: 480px; font-weight: 300; line-height: 1.7; }
+
+  /* CATEGORIES */
+  .categories { background: var(--white); }
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 48px; }
+  .cat-card {
+    border: 1.5px solid var(--border); border-radius: 16px; padding: 28px 20px;
+    text-align: center; cursor: pointer;
+    transition: border-color .2s, box-shadow .2s, transform .2s;
+    background: var(--bg); text-decoration: none; color: var(--ink);
+  }
+  .cat-card:hover { border-color: var(--violet); box-shadow: 0 8px 32px rgba(124,58,237,0.1); transform: translateY(-3px); }
+  .cat-card.active { border-color: var(--violet); background: var(--lavender); }
+  .cat-icon { font-size: 32px; margin-bottom: 10px; display: block; }
+  .cat-name { font-size: 14px; font-weight: 600; display: block; margin-bottom: 4px; }
+  .cat-count { font-size: 12px; color: var(--muted); display: block; }
+
+  /* SHOP */
+  .shop { background: var(--bg); }
+  .shop-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 48px; flex-wrap: wrap; gap: 20px; }
+  .filter-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill { padding: 7px 18px; border-radius: 100px; border: 1.5px solid var(--border); font-size: 13px; font-weight: 500; cursor: pointer; background: var(--white); color: var(--muted); transition: all .2s; }
+  .pill:hover, .pill.active { border-color: var(--violet); color: var(--violet); background: var(--lavender); }
+
+  .products-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 28px; }
+
+  .product-card {
+    background: var(--white); border-radius: 20px; overflow: hidden;
+    border: 1.5px solid var(--border);
+    transition: box-shadow .25s, transform .25s; cursor: pointer;
+  }
+  .product-card:hover { box-shadow: 0 16px 48px rgba(26,21,35,0.1); transform: translateY(-4px); }
+
+  .product-thumb { height: 220px; display: flex; align-items: center; justify-content: center; font-size: 64px; position: relative; overflow: hidden; }
+  .product-badge {
+    position: absolute; top: 14px; left: 14px;
+    background: var(--gold); color: var(--ink);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 4px 10px; border-radius: 100px;
+  }
+  .product-badge.new { background: var(--violet); color: var(--white); }
+
+  .product-info { padding: 20px 22px 22px; }
+  .product-category { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--violet); margin-bottom: 6px; }
+  .product-name { font-family: 'Playfair Display', serif; font-size: 18px; color: var(--ink); margin-bottom: 8px; line-height: 1.3; }
+  .product-desc { font-size: 13px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+  .product-footer { display: flex; align-items: center; justify-content: space-between; }
+  .product-price { font-size: 20px; font-weight: 700; color: var(--ink); }
+  .product-price .currency { font-size: 14px; font-weight: 500; color: var(--muted); }
+  .btn-buy {
+    background: var(--ink); color: var(--white);
+    border: none; border-radius: 100px; padding: 9px 20px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background .2s, transform .15s; font-family: 'Inter', sans-serif;
+  }
+  .btn-buy:hover { background: var(--violet); transform: scale(1.03); }
+
+  /* ABOUT STRIP */
+  .about-strip { background: var(--ink); color: var(--white); display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 0; }
+  .about-text { padding: 80px 6vw; display: flex; flex-direction: column; justify-content: center; }
+  .about-text .section-label { color: var(--gold); }
+  .about-text .section-title { color: var(--white); }
+  .about-text p { color: rgba(255,255,255,0.65); font-size: 16px; line-height: 1.8; font-weight: 300; margin-top: 16px; }
+  .about-visual { background: var(--violet2); display: flex; align-items: center; justify-content: center; min-height: 400px; font-size: 120px; position: relative; overflow: hidden; }
+  .about-visual::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 60% 40%, rgba(124,58,237,0.5) 0%, transparent 70%); }
+  .about-visual span { position: relative; z-index: 1; }
+
+  /* STATS */
+  .stats { background: var(--lavender); display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0; padding: 60px 5vw; text-align: center; }
+  .stat-item { padding: 24px; border-right: 1px solid var(--border); }
+  .stat-item:last-child { border-right: none; }
+  .stat-number { font-family: 'Playfair Display', serif; font-size: 42px; font-weight: 600; color: var(--violet); display: block; line-height: 1; margin-bottom: 6px; }
+  .stat-label { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+  /* TESTIMONIALS */
+  .testimonials { background: var(--white); }
+  .testi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-top: 48px; }
+  .testi-card { background: var(--bg); border-radius: 16px; padding: 28px; border: 1.5px solid var(--border); }
+  .testi-stars { color: var(--gold); font-size: 16px; margin-bottom: 14px; }
+  .testi-text { font-size: 15px; color: var(--ink); line-height: 1.7; margin-bottom: 20px; font-style: italic; }
+  .testi-author { display: flex; align-items: center; gap: 12px; }
+  .testi-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--lavender); display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .testi-name { font-size: 14px; font-weight: 600; color: var(--ink); }
+  .testi-role { font-size: 12px; color: var(--muted); }
+
+  /* CTA BANNER */
+  .cta-banner { background: var(--violet); text-align: center; padding: 80px 5vw; position: relative; overflow: hidden; }
+  .cta-banner::before { content: "🦋"; position: absolute; font-size: 300px; opacity: 0.06; top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .cta-banner h2 { font-family: 'Playfair Display', serif; font-size: clamp(28px, 4vw, 48px); color: var(--white); margin-bottom: 16px; position: relative; z-index: 1; }
+  .cta-banner p { color: rgba(255,255,255,0.75); font-size: 17px; margin-bottom: 36px; position: relative; z-index: 1; }
+  .btn-white { background: var(--white); color: var(--violet); padding: 14px 36px; border-radius: 100px; font-size: 15px; font-weight: 700; text-decoration: none; display: inline-block; transition: transform .15s, box-shadow .15s; position: relative; z-index: 1; }
+  .btn-white:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.15); }
+
+  /* FOOTER */
+  footer { background: var(--ink); color: rgba(255,255,255,0.7); }
+  .footer-top { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; padding: 64px 5vw; }
+  .footer-brand .name { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--white); margin-bottom: 12px; }
+  .footer-brand p { font-size: 14px; line-height: 1.7; max-width: 280px; }
+  .footer-col h4 { color: var(--white); font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+  .footer-col a { display: block; color: rgba(255,255,255,0.6); text-decoration: none; font-size: 14px; margin-bottom: 10px; transition: color .2s; }
+  .footer-col a:hover { color: var(--white); }
+  .footer-bottom { border-top: 1px solid rgba(255,255,255,0.1); padding: 24px 5vw; display: flex; justify-content: space-between; align-items: center; }
+  .footer-bottom p { font-size: 13px; }
+  .footer-socials { display: flex; gap: 16px; }
+  .footer-socials a { font-size: 18px; text-decoration: none; opacity: 0.7; transition: opacity .2s; }
+  .footer-socials a:hover { opacity: 1; }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(26,21,35,0.6); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--white); border-radius: 24px; width: 100%; max-width: 480px;
+    max-height: 90vh; overflow-y: auto; padding: 40px; position: relative;
+    animation: slideUp .3s ease;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  .modal-close { position: absolute; top: 16px; right: 16px; background: var(--bg); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: background .2s; }
+  .modal-close:hover { background: var(--border); }
+  .modal-emoji { font-size: 48px; margin-bottom: 16px; display: block; }
+  .modal-category { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--violet); margin-bottom: 6px; }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 26px; margin-bottom: 12px; }
+  .modal-desc { font-size: 15px; color: var(--muted); line-height: 1.7; margin-bottom: 24px; }
+  .modal-price { font-size: 28px; font-weight: 700; color: var(--ink); margin-bottom: 24px; }
+  .modal-price span { font-size: 16px; color: var(--muted); font-weight: 400; }
+  .modal-includes { margin-bottom: 28px; }
+  .modal-includes h4 { font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+  .modal-includes li { font-size: 14px; color: var(--muted); margin-bottom: 6px; list-style: none; padding-left: 20px; position: relative; }
+  .modal-includes li::before { content: "✓"; color: var(--violet); font-weight: 700; position: absolute; left: 0; }
+  .btn-buy-modal {
+    width: 100%; background: var(--violet); color: var(--white);
+    border: none; border-radius: 100px; padding: 15px; font-size: 16px; font-weight: 700;
+    cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: background .2s, transform .15s;
+  }
+  .btn-buy-modal:hover { background: var(--violet2); transform: scale(1.01); }
+
+  /* CHECKOUT FORM MODAL */
+  .checkout-overlay {
+    position: fixed; inset: 0; z-index: 300;
+    background: rgba(26,21,35,0.7); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; padding: 20px;
+  }
+  .checkout-overlay.open { display: flex; }
+  .checkout-box {
+    background: var(--white); border-radius: 24px; width: 100%; max-width: 420px;
+    padding: 40px; position: relative; animation: slideUp .3s ease;
+  }
+  .checkout-box h3 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 6px; }
+  .checkout-box p { color: var(--muted); font-size: 14px; margin-bottom: 24px; }
+  .checkout-product-info {
+    background: var(--lavender); border-radius: 12px; padding: 14px 18px;
+    margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .checkout-product-info .pname { font-weight: 600; font-size: 14px; }
+  .checkout-product-info .pprice { font-size: 18px; font-weight: 700; color: var(--violet); }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--ink); }
+  .form-group input {
+    width: 100%; border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 11px 14px; font-size: 15px; font-family: 'Inter', sans-serif;
+    outline: none; transition: border-color .2s; background: var(--bg);
+  }
+  .form-group input:focus { border-color: var(--violet); background: var(--white); }
+  .btn-pay {
+    width: 100%; background: var(--violet); color: var(--white);
+    border: none; border-radius: 100px; padding: 15px; font-size: 16px; font-weight: 700;
+    cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: background .2s, transform .15s; margin-top: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-pay:hover { background: var(--violet2); transform: scale(1.01); }
+  .btn-pay:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  .checkout-close { position: absolute; top: 16px; right: 16px; background: var(--bg); border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+  .checkout-close:hover { background: var(--border); }
+  .secure-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 12px; }
+
+  /* SUCCESS TOAST */
+  .toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #10B981; color: white; border-radius: 100px;
+    padding: 14px 28px; font-size: 15px; font-weight: 600;
+    box-shadow: 0 8px 32px rgba(16,185,129,0.3);
+    z-index: 999; transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* LOADING SPINNER */
+  .loading-products { text-align: center; padding: 60px; color: var(--muted); font-size: 16px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--lavender); border-top-color: var(--violet); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    nav { padding: 0 20px; }
+    .nav-links { display: none; }
+    .about-strip { grid-template-columns: 1fr; }
+    .about-visual { min-height: 200px; font-size: 80px; }
+    .footer-top { grid-template-columns: 1fr; gap: 32px; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .stat-item:last-child { border-bottom: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-brand">
+    <span class="butterfly">🦋</span>
+    <span>Violet Fly</span>
+  </a>
+  <div class="nav-links">
+    <a href="#shop">Shop</a>
+    <a href="#about">About</a>
+    <a href="mailto:hello@violetfly.com">Contact</a>
+    <a href="#shop" class="nav-cta">Browse Products →</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-eyebrow">🦋 Digital Products for Bold Dreamers</div>
+    <h1>Design your life with <em>beautiful</em> digital tools</h1>
+    <p>Ebooks, posters, templates & more — crafted to inspire, educate, and elevate your everyday.</p>
+    <div class="hero-btns">
+      <a href="#shop" class="btn-primary">Shop All Products →</a>
+      <a href="#about" class="btn-outline">Our Story</a>
+    </div>
+  </div>
+</section>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <div class="marquee-item">✦ Instant Download <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Premium Quality <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Ebooks & Guides <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Wall Art & Posters <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Templates <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Designed with Love <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">✦ Instant Download <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Premium Quality <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Ebooks & Guides <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Wall Art & Posters <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Templates <span class="marquee-dot">●</span></div>
+    <div class="marquee-item">Designed with Love <span class="marquee-dot">●</span></div>
+  </div>
+</div>
+
+<!-- CATEGORIES -->
+<section class="categories" id="categories">
+  <div class="section-label">Browse by category</div>
+  <div class="section-title">Find what you need</div>
+  <div class="cat-grid">
+    <a class="cat-card active" href="#shop" onclick="filterProducts('all',this)">
+      <span class="cat-icon">🛍️</span>
+      <span class="cat-name">All Products</span>
+      <span class="cat-count" id="countAll">— items</span>
+    </a>
+    <a class="cat-card" href="#shop" onclick="filterProducts('ebook',this)">
+      <span class="cat-icon">📖</span>
+      <span class="cat-name">Ebooks</span>
+      <span class="cat-count" id="countEbook">— items</span>
+    </a>
+    <a class="cat-card" href="#shop" onclick="filterProducts('poster',this)">
+      <span class="cat-icon">🖼️</span>
+      <span class="cat-name">Posters & Prints</span>
+      <span class="cat-count" id="countPoster">— items</span>
+    </a>
+    <a class="cat-card" href="#shop" onclick="filterProducts('template',this)">
+      <span class="cat-icon">📋</span>
+      <span class="cat-name">Templates</span>
+      <span class="cat-count" id="countTemplate">— items</span>
+    </a>
+  </div>
+</section>
+
+<!-- SHOP -->
+<section class="shop" id="shop">
+  <div class="shop-header">
+    <div>
+      <div class="section-label">Our collection</div>
+      <div class="section-title">Digital Products</div>
+    </div>
+    <div class="filter-pills">
+      <div class="pill active" onclick="filterProducts('all',this)">All</div>
+      <div class="pill" onclick="filterProducts('ebook',this)">Ebooks</div>
+      <div class="pill" onclick="filterProducts('poster',this)">Posters</div>
+      <div class="pill" onclick="filterProducts('template',this)">Templates</div>
+    </div>
+  </div>
+
+  <div class="products-grid" id="productsGrid">
+    <div class="loading-products">
+      <div class="spinner"></div>
+      Loading products...
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat-item"><span class="stat-number">500+</span><span class="stat-label">Happy Customers</span></div>
+  <div class="stat-item"><span class="stat-number" id="statProducts">—</span><span class="stat-label">Digital Products</span></div>
+  <div class="stat-item"><span class="stat-number">⭐ 4.9</span><span class="stat-label">Average Rating</span></div>
+  <div class="stat-item"><span class="stat-number">∞</span><span class="stat-label">Instant Downloads</span></div>
+</div>
+
+<!-- ABOUT -->
+<div class="about-strip" id="about">
+  <div class="about-text">
+    <div class="section-label">Our story</div>
+    <div class="section-title">Made with intention, for people who dare to dream</div>
+    <p>Violet Fly was born from a simple belief — that beautiful, well-crafted digital products can genuinely change how people learn, grow, and show up in the world.</p>
+    <p style="margin-top:12px;">Every product we create is designed with care, tested for real-world use, and priced so anyone can access it. Because your growth shouldn't cost a fortune.</p>
+  </div>
+  <div class="about-visual"><span>🦋</span></div>
+</div>
+
+<!-- TESTIMONIALS -->
+<section class="testimonials">
+  <div class="section-label">What people say</div>
+  <div class="section-title">Loved by dreamers like you</div>
+  <div class="testi-grid">
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"The AI ebook genuinely changed how I think. I read it in one sitting and immediately started building. Bought it for ₹399 and it's already made me thousands."</div>
+      <div class="testi-author"><div class="testi-avatar">🧑</div><div><div class="testi-name">Rahul M.</div><div class="testi-role">Freelancer, Pune</div></div></div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"The Canva ebook templates saved me so much time. My first digital product was live in a single weekend. I can't believe this costs only ₹249!"</div>
+      <div class="testi-author"><div class="testi-avatar">👩</div><div><div class="testi-name">Sneha K.</div><div class="testi-role">Content Creator, Mumbai</div></div></div>
+    </div>
+    <div class="testi-card">
+      <div class="testi-stars">★★★★★</div>
+      <div class="testi-text">"Bought the Violet Fly poster print for my workspace. It looks stunning! High quality design, instant download, no hassle at all. Will buy more."</div>
+      <div class="testi-author"><div class="testi-avatar">🧑</div><div><div class="testi-name">Arjun T.</div><div class="testi-role">Student, Bangalore</div></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<div class="cta-banner">
+  <h2>Ready to invest in yourself?</h2>
+  <p>Every product is an instant download. No waiting. No shipping. Just value.</p>
+  <a href="#shop" class="btn-white">Shop All Products →</a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <div class="name">🦋 Violet Fly</div>
+      <p>Premium digital downloads crafted to elevate your space, your mind, and your life.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Shop</h4>
+      <a href="#shop">All Products</a>
+      <a href="#shop" onclick="filterProducts('ebook')">Ebooks</a>
+      <a href="#shop" onclick="filterProducts('poster')">Posters & Prints</a>
+      <a href="#shop" onclick="filterProducts('template')">Templates</a>
+    </div>
+    <div class="footer-col">
+      <h4>Info</h4>
+      <a href="#about">About Us</a>
+      <a href="mailto:hello@violetfly.com">Contact</a>
+      <a href="#">Refund Policy</a>
+      <a href="#">Privacy Policy</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2025 Violet Fly. All rights reserved.</p>
+    <div class="footer-socials">
+      <a href="#" title="Instagram">📸</a>
+      <a href="#" title="Twitter">🐦</a>
+      <a href="#" title="YouTube">▶️</a>
+    </div>
+  </div>
+</footer>
+
+<!-- PRODUCT DETAIL MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    <span class="modal-emoji" id="mEmoji"></span>
+    <div class="modal-category" id="mCat"></div>
+    <div class="modal-title" id="mTitle"></div>
+    <div class="modal-desc" id="mDesc"></div>
+    <div class="modal-price" id="mPrice"></div>
+    <div class="modal-includes">
+      <h4>What's included:</h4>
+      <ul id="mIncludes"></ul>
+    </div>
+    <button class="btn-buy-modal" id="mBtn">Get Instant Access →</button>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div class="checkout-overlay" id="checkoutOverlay">
+  <div class="checkout-box">
+    <button class="checkout-close" onclick="closeCheckout()">✕</button>
+    <h3>Almost there! 🦋</h3>
+    <p>Enter your details to receive your download link instantly after payment.</p>
+    <div class="checkout-product-info">
+      <span class="pname" id="cpName">—</span>
+      <span class="pprice" id="cpPrice">—</span>
+    </div>
+    <div class="form-group">
+      <label>Your Name</label>
+      <input type="text" id="custName" placeholder="Priya Sharma" autocomplete="name" />
+    </div>
+    <div class="form-group">
+      <label>Your Email</label>
+      <input type="email" id="custEmail" placeholder="priya@email.com" autocomplete="email" />
+    </div>
+    <button class="btn-pay" id="payBtn" onclick="startPayment()">
+      🔒 Pay Securely with Razorpay
+    </button>
+    <p class="secure-note">🔐 Secure payment · Download link emailed instantly</p>
+  </div>
+</div>
+
+<!-- SUCCESS TOAST -->
+<div class="toast" id="toast">✅ Payment successful! Check your email for the download link.</div>
+
+<script>
+// ─── EMAILJS INIT ───────────────────────────────────────
+emailjs.init("XIBOItrMCG3CzACCo");
+
+// ─── DEFAULT PRODUCTS (fallback if Firebase empty) ──────
+const DEFAULT_PRODUCTS = [
+  {
+    id: "ebook1",
+    emoji: "📘",
+    category: "ebook",
+    name: "The Last Skill You'll Ever Need",
+    desc: "How ordinary people are using AI to rewrite their future. 10 chapters of pure inspiration.",
+    price: 399,
+    badge: "New",
+    thumbBg: "linear-gradient(135deg, #1A0A2E 0%, #5B21B6 100%)",
+    includes: ["10 full chapters (PDF)", "Instant download", "Free updates", "Printable version included"],
+    downloadLink: ""
+  },
+  {
+    id: "ebook2",
+    emoji: "💰",
+    category: "ebook",
+    name: "Save Your First ₹50,000 in 6 Months",
+    desc: "A practical, no-fluff guide to budgeting and saving money — even on a tight income.",
+    price: 299,
+    badge: "Bestseller",
+    thumbBg: "linear-gradient(135deg, #064E3B 0%, #059669 100%)",
+    includes: ["8-chapter PDF guide", "Budget tracker sheet", "Instant download", "Free updates"],
+    downloadLink: ""
+  },
+  {
+    id: "poster1",
+    emoji: "🌸",
+    category: "poster",
+    name: "Bloom Anyway — Motivational Wall Art",
+    desc: "Minimal, elegant typography print. Instant download in HD. Print at any size.",
+    price: 149,
+    badge: "",
+    thumbBg: "linear-gradient(135deg, #F3F0FF 0%, #DDD6FE 100%)",
+    includes: ["High-res PDF (300 DPI)", "A3 + A4 sizes included", "Instant download", "Print-ready file"],
+    downloadLink: ""
+  },
+  {
+    id: "poster2",
+    emoji: "🦋",
+    category: "poster",
+    name: "Violet Fly — Signature Art Print",
+    desc: "Our iconic butterfly design in deep violet. A statement piece for your workspace or home.",
+    price: 199,
+    badge: "New",
+    thumbBg: "linear-gradient(135deg, #1A1523 0%, #7C3AED 100%)",
+    includes: ["High-res PDF (300 DPI)", "A2 + A3 + A4 sizes", "Instant download", "Dark & light versions"],
+    downloadLink: ""
+  },
+  {
+    id: "template1",
+    emoji: "📊",
+    category: "template",
+    name: "Canva Ebook Template Pack",
+    desc: "5 professionally designed Canva templates to publish your own ebook in hours, not days.",
+    price: 249,
+    badge: "",
+    thumbBg: "linear-gradient(135deg, #FEF3C7 0%, #F59E0B 100%)",
+    includes: ["5 Canva templates", "Editable in free Canva", "Fonts & colours included", "Instructions guide"],
+    downloadLink: ""
+  },
+  {
+    id: "template2",
+    emoji: "📱",
+    category: "template",
+    name: "Instagram Content Planner",
+    desc: "30-day Notion template to plan, schedule, and track your Instagram content effortlessly.",
+    price: 179,
+    badge: "",
+    thumbBg: "linear-gradient(135deg, #EFF6FF 0%, #3B82F6 100%)",
+    includes: ["Notion template (duplicate)", "30-day content calendar", "Caption frameworks", "Hashtag tracker"],
+    downloadLink: ""
+  }
+];
+window._defaultProducts = DEFAULT_PRODUCTS;
+
+// ─── CURRENT ACTIVE PRODUCT ──────────────────────────────
+let _currentProduct = null;
+let _allProducts = [];
+
+// ─── RENDER PRODUCTS ─────────────────────────────────────
+function renderProducts(products) {
+  _allProducts = products.length > 0 ? products : DEFAULT_PRODUCTS;
+  const grid = document.getElementById('productsGrid');
+  
+  if (_allProducts.length === 0) {
+    grid.innerHTML = '<div class="loading-products">No products yet. Check back soon! 🦋</div>';
+    return;
+  }
+
+  grid.innerHTML = _allProducts.map(p => `
+    <div class="product-card" data-cat="${p.category}" onclick="openModal('${p.id}')">
+      <div class="product-thumb" style="background: ${p.thumbBg || 'linear-gradient(135deg, #F3F0FF 0%, #7C3AED 100%)'}">
+        <span>${p.emoji || '📦'}</span>
+        ${p.badge ? `<div class="product-badge ${p.badge === 'New' ? 'new' : ''}">${p.badge}</div>` : ''}
+      </div>
+      <div class="product-info">
+        <div class="product-category">${p.category}</div>
+        <div class="product-name">${p.name}</div>
+        <div class="product-desc">${p.desc}</div>
+        <div class="product-footer">
+          <div class="product-price"><span class="currency">₹</span>${p.price}</div>
+          <button class="btn-buy" onclick="event.stopPropagation();openCheckout('${p.id}')">Buy Now</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // Update counts
+  updateCounts(_allProducts);
+  document.getElementById('statProducts').textContent = _allProducts.length;
+}
+
+function updateCounts(products) {
+  const all = products.length;
+  const ebooks = products.filter(p => p.category === 'ebook').length;
+  const posters = products.filter(p => p.category === 'poster').length;
+  const templates = products.filter(p => p.category === 'template').length;
+  document.getElementById('countAll').textContent = all + ' items';
+  document.getElementById('countEbook').textContent = ebooks + ' items';
+  document.getElementById('countPoster').textContent = posters + ' items';
+  document.getElementById('countTemplate').textContent = templates + ' items';
+}
+
+// ─── MODAL ────────────────────────────────────────────────
+function openModal(id) {
+  const p = _allProducts.find(x => x.id === id);
+  if (!p) return;
+  _currentProduct = p;
+  document.getElementById('mEmoji').textContent = p.emoji || '📦';
+  document.getElementById('mCat').textContent = p.category;
+  document.getElementById('mTitle').textContent = p.name;
+  document.getElementById('mDesc').textContent = p.desc;
+  document.getElementById('mPrice').innerHTML = '₹' + p.price + ' <span>one-time payment</span>';
+  const ul = document.getElementById('mIncludes');
+  ul.innerHTML = (p.includes || []).map(i => `<li>${i}</li>`).join('');
+  document.getElementById('mBtn').onclick = () => { closeModalDirect(); openCheckout(id); };
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ─── FILTER ───────────────────────────────────────────────
+function filterProducts(cat, el) {
+  if (el) {
+    document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+    if (el.classList.contains('pill')) el.classList.add('active');
+  }
+  document.querySelectorAll('.product-card').forEach(card => {
+    card.style.display = (cat === 'all' || card.dataset.cat === cat) ? 'block' : 'none';
+  });
+  document.getElementById('shop').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ─── CHECKOUT ─────────────────────────────────────────────
+function openCheckout(id) {
+  const p = _allProducts.find(x => x.id === id);
+  if (!p) return;
+  _currentProduct = p;
+  document.getElementById('cpName').textContent = p.name;
+  document.getElementById('cpPrice').textContent = '₹' + p.price;
+  document.getElementById('custName').value = '';
+  document.getElementById('custEmail').value = '';
+  document.getElementById('checkoutOverlay').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeCheckout() {
+  document.getElementById('checkoutOverlay').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+// ─── PAYMENT ─────────────────────────────────────────────
+function startPayment() {
+  const name = document.getElementById('custName').value.trim();
+  const email = document.getElementById('custEmail').value.trim();
+
+  if (!name) { alert('Please enter your name.'); return; }
+  if (!email || !email.includes('@')) { alert('Please enter a valid email.'); return; }
+  if (!_currentProduct) { alert('No product selected.'); return; }
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = 'Opening payment...';
+
+  const options = {
+    key: "rzp_test_T1ta5v0qC4oAmo",
+    amount: _currentProduct.price * 100, // paise
+    currency: "INR",
+    name: "Violet Fly",
+    description: _currentProduct.name,
+    image: "https://em-content.zobj.net/source/apple/354/butterfly_1f98b.png",
+    handler: function(response) {
+      // Payment successful!
+      closeCheckout();
+      sendEmail(name, email, _currentProduct, response.razorpay_payment_id);
+    },
+    prefill: { name: name, email: email },
+    notes: { product_id: _currentProduct.id, customer_email: email },
+    theme: { color: "#7C3AED" },
+    modal: {
+      ondismiss: function() {
+        btn.disabled = false;
+        btn.innerHTML = '🔒 Pay Securely with Razorpay';
+      }
+    }
+  };
+
+  const rzp = new Razorpay(options);
+  rzp.on('payment.failed', function(response) {
+    btn.disabled = false;
+    btn.innerHTML = '🔒 Pay Securely with Razorpay';
+    alert('Payment failed. Please try again.\nError: ' + response.error.description);
+  });
+  rzp.open();
+}
+
+// ─── SEND EMAIL ───────────────────────────────────────────
+function sendEmail(customerName, customerEmail, product, paymentId) {
+  const templateParams = {
+    customer_name: customerName,
+    customer_email: customerEmail,
+    product_name: product.name,
+    amount: '₹' + product.price,
+    download_link: product.downloadLink || '#',
+    payment_id: paymentId
+  };
+
+  emailjs.send("service_ycp5qsf", "template_jgqfwsf", templateParams)
+    .then(() => {
+      showToast('✅ Payment successful! Check your email for the download link.');
+    })
+    .catch((err) => {
+      console.error("EmailJS error:", err);
+      showToast('✅ Payment received! Email delivery may take a few minutes.');
+    });
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 5000);
+}
+
+// ─── KEYBOARD ────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModalDirect(); closeCheckout(); }
+});
+
+// ─── INITIAL RENDER (fallback while Firebase loads) ──────
+renderProducts(DEFAULT_PRODUCTS);
+</script>
+</body>
+</html>

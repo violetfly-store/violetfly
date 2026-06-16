@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Violet Fly</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyA_UZB3DcTWtV9XstyYB2OGtnLwwZ8KHW8",
+    authDomain: "violet-fly.firebaseapp.com",
+    projectId: "violet-fly",
+    storageBucket: "violet-fly.firebasestorage.app",
+    messagingSenderId: "949352702751",
+    appId: "1:949352702751:web:6db4121edb2528f31dc62a",
+    measurementId: "G-MQWS50426C"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const colRef = collection(db, "products");
+
+  // Expose to window
+  window._db = db;
+  window._colRef = colRef;
+  window._addDoc = addDoc;
+  window._deleteDoc = deleteDoc;
+  window._doc = doc;
+  window._updateDoc = updateDoc;
+  window._getDocs = getDocs;
+  window._firebaseReady = true;
+
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #1A1523; --violet: #7C3AED; --violet2: #5B21B6;
+    --lavender: #F3F0FF; --gold: #F59E0B; --bg: #FAFAF9;
+    --muted: #6B7280; --border: #E5E1F0; --white: #ffffff;
+    --red: #EF4444; --green: #10B981;
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; }
+
+  /* LOGIN SCREEN */
+  #loginScreen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1A1523 0%, #5B21B6 100%);
+  }
+  .login-box {
+    background: var(--white); border-radius: 24px; padding: 48px 40px;
+    width: 100%; max-width: 380px; text-align: center; box-shadow: 0 32px 80px rgba(0,0,0,0.3);
+  }
+  .login-logo { font-size: 48px; margin-bottom: 8px; }
+  .login-box h2 { font-family: 'Playfair Display', serif; font-size: 26px; margin-bottom: 6px; }
+  .login-box p { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+  .login-box input {
+    width: 100%; border: 1.5px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; font-size: 15px; font-family: 'Inter', sans-serif;
+    outline: none; margin-bottom: 14px; background: var(--bg);
+    transition: border-color .2s;
+  }
+  .login-box input:focus { border-color: var(--violet); background: var(--white); }
+  .btn-login {
+    width: 100%; background: var(--violet); color: var(--white);
+    border: none; border-radius: 100px; padding: 13px;
+    font-size: 15px; font-weight: 700; cursor: pointer;
+    font-family: 'Inter', sans-serif; transition: background .2s;
+  }
+  .btn-login:hover { background: var(--violet2); }
+  .login-err { color: var(--red); font-size: 13px; margin-top: 10px; display: none; }
+
+  /* ADMIN PANEL */
+  #adminPanel { display: none; }
+
+  /* TOP BAR */
+  .topbar {
+    background: var(--ink); color: var(--white);
+    padding: 0 5vw; height: 60px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-brand { display: flex; align-items: center; gap: 10px; font-family: 'Playfair Display', serif; font-size: 18px; }
+  .topbar-right { display: flex; align-items: center; gap: 16px; }
+  .badge-admin { background: var(--violet); color: var(--white); font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 100px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .btn-logout { background: none; border: 1.5px solid rgba(255,255,255,0.3); color: rgba(255,255,255,0.8); border-radius: 100px; padding: 6px 16px; font-size: 13px; cursor: pointer; font-family: 'Inter'; transition: border-color .2s; }
+  .btn-logout:hover { border-color: white; color: white; }
+  .btn-visit { background: var(--violet); color: var(--white); border: none; border-radius: 100px; padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter'; text-decoration: none; }
+
+  /* MAIN */
+  .admin-main { padding: 40px 5vw; max-width: 1100px; margin: 0 auto; }
+
+  .admin-header { margin-bottom: 36px; }
+  .admin-header h1 { font-family: 'Playfair Display', serif; font-size: 32px; margin-bottom: 6px; }
+  .admin-header p { color: var(--muted); font-size: 15px; }
+
+  /* STATS ROW */
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 40px; }
+  .stat-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 16px; padding: 20px; text-align: center; }
+  .stat-card .n { font-family: 'Playfair Display', serif; font-size: 36px; color: var(--violet); font-weight: 600; }
+  .stat-card .l { font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 4px; }
+
+  /* ADD FORM */
+  .form-card {
+    background: var(--white); border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 32px; margin-bottom: 40px;
+  }
+  .form-card h2 { font-size: 18px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-grid.full { grid-template-columns: 1fr; }
+  .fg { display: flex; flex-direction: column; gap: 6px; }
+  .fg label { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .fg input, .fg select, .fg textarea {
+    border: 1.5px solid var(--border); border-radius: 10px; padding: 10px 14px;
+    font-size: 14px; font-family: 'Inter'; outline: none; transition: border-color .2s; background: var(--bg);
+  }
+  .fg input:focus, .fg select:focus, .fg textarea:focus { border-color: var(--violet); background: var(--white); }
+  .fg textarea { resize: vertical; min-height: 80px; }
+  .fg .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .form-actions { margin-top: 20px; display: flex; gap: 12px; }
+  .btn-add {
+    background: var(--violet); color: var(--white);
+    border: none; border-radius: 100px; padding: 12px 28px;
+    font-size: 14px; font-weight: 700; cursor: pointer; font-family: 'Inter';
+    transition: background .2s; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-add:hover { background: var(--violet2); }
+  .btn-add:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-clear { background: none; border: 1.5px solid var(--border); color: var(--muted); border-radius: 100px; padding: 12px 24px; font-size: 14px; cursor: pointer; font-family: 'Inter'; }
+  .btn-clear:hover { border-color: var(--ink); color: var(--ink); }
+
+  /* INCLUDES FIELD */
+  .includes-builder { display: flex; flex-direction: column; gap: 8px; }
+  .include-row { display: flex; gap: 8px; }
+  .include-row input { flex: 1; }
+  .btn-remove-inc { background: none; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; color: var(--muted); font-size: 16px; transition: all .2s; }
+  .btn-remove-inc:hover { border-color: var(--red); color: var(--red); }
+  .btn-add-inc { background: var(--lavender); color: var(--violet); border: 1.5px dashed var(--violet); border-radius: 8px; padding: 9px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter'; transition: background .2s; }
+  .btn-add-inc:hover { background: #e4dfff; }
+
+  /* PRODUCTS TABLE */
+  .products-section h2 { font-size: 18px; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+  .product-list { display: flex; flex-direction: column; gap: 14px; }
+  .product-row {
+    background: var(--white); border: 1.5px solid var(--border); border-radius: 16px;
+    padding: 18px 22px; display: flex; align-items: center; gap: 16px;
+    transition: box-shadow .2s;
+  }
+  .product-row:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .pr-emoji { font-size: 32px; flex-shrink: 0; width: 48px; text-align: center; }
+  .pr-info { flex: 1; min-width: 0; }
+  .pr-name { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pr-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .pr-link { font-size: 12px; color: var(--violet); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 300px; margin-top: 3px; }
+  .pr-price { font-weight: 700; font-size: 18px; color: var(--ink); flex-shrink: 0; }
+  .pr-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .btn-edit { background: var(--lavender); color: var(--violet); border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter'; }
+  .btn-edit:hover { background: #ddd6fe; }
+  .btn-delete { background: #FEF2F2; color: var(--red); border: none; border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter'; }
+  .btn-delete:hover { background: #FEE2E2; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 60px; color: var(--muted); }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 15px; }
+
+  /* TOAST */
+  .toast {
+    position: fixed; bottom: 32px; right: 32px;
+    background: var(--green); color: white; border-radius: 12px;
+    padding: 14px 24px; font-size: 14px; font-weight: 600;
+    box-shadow: 0 8px 32px rgba(16,185,129,0.3); z-index: 999;
+    transform: translateY(80px); transition: transform .4s cubic-bezier(.34,1.56,.64,1);
+    opacity: 0;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.error { background: var(--red); box-shadow: 0 8px 32px rgba(239,68,68,0.3); }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--muted); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--lavender); border-top-color: var(--violet); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (max-width: 640px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .product-row { flex-wrap: wrap; }
+    .pr-price { order: -1; }
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen">
+  <div class="login-box">
+    <div class="login-logo">🦋</div>
+    <h2>Admin Panel</h2>
+    <p>Violet Fly Store Management</p>
+    <input type="password" id="pwInput" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')login()" />
+    <button class="btn-login" onclick="login()">Login →</button>
+    <p class="login-err" id="loginErr">❌ Incorrect password. Try again.</p>
+  </div>
+</div>
+
+<!-- ADMIN PANEL -->
+<div id="adminPanel">
+  <div class="topbar">
+    <div class="topbar-brand">🦋 Violet Fly <span class="badge-admin">Admin</span></div>
+    <div class="topbar-right">
+      <a href="../index.html" class="btn-visit" target="_blank">View Store →</a>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <div class="admin-main">
+    <div class="admin-header">
+      <h1>Product Manager</h1>
+      <p>Add, edit, and delete products. Changes appear on your store instantly.</p>
+    </div>
+
+    <!-- STATS ROW -->
+    <div class="stats-row">
+      <div class="stat-card"><div class="n" id="sTot">—</div><div class="l">Total Products</div></div>
+      <div class="stat-card"><div class="n" id="sEbook">—</div><div class="l">Ebooks</div></div>
+      <div class="stat-card"><div class="n" id="sPoster">—</div><div class="l">Posters</div></div>
+      <div class="stat-card"><div class="n" id="sTemp">—</div><div class="l">Templates</div></div>
+    </div>
+
+    <!-- ADD / EDIT PRODUCT FORM -->
+    <div class="form-card">
+      <h2 id="formTitle">➕ Add New Product</h2>
+      <input type="hidden" id="editId" value="" />
+
+      <div class="form-grid">
+        <div class="fg">
+          <label>Product Name *</label>
+          <input id="fName" type="text" placeholder="The Last Skill You'll Ever Need" />
+        </div>
+        <div class="fg">
+          <label>Category *</label>
+          <select id="fCat">
+            <option value="ebook">📖 Ebook</option>
+            <option value="poster">🖼️ Poster & Print</option>
+            <option value="template">📋 Template</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Price (₹) *</label>
+          <input id="fPrice" type="number" min="1" placeholder="399" />
+        </div>
+        <div class="fg">
+          <label>Emoji Icon</label>
+          <input id="fEmoji" type="text" placeholder="📘" maxlength="4" />
+        </div>
+        <div class="fg">
+          <label>Badge (optional)</label>
+          <select id="fBadge">
+            <option value="">No badge</option>
+            <option value="New">🆕 New</option>
+            <option value="Bestseller">🔥 Bestseller</option>
+            <option value="Hot">⭐ Hot</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>Thumbnail Background</label>
+          <select id="fThumb">
+            <option value="linear-gradient(135deg, #1A0A2E 0%, #5B21B6 100%)">🟣 Dark Purple</option>
+            <option value="linear-gradient(135deg, #064E3B 0%, #059669 100%)">🟢 Dark Green</option>
+            <option value="linear-gradient(135deg, #F3F0FF 0%, #DDD6FE 100%)">💜 Light Lavender</option>
+            <option value="linear-gradient(135deg, #1A1523 0%, #7C3AED 100%)">🌌 Violet Night</option>
+            <option value="linear-gradient(135deg, #FEF3C7 0%, #F59E0B 100%)">🌟 Golden</option>
+            <option value="linear-gradient(135deg, #EFF6FF 0%, #3B82F6 100%)">🔵 Sky Blue</option>
+            <option value="linear-gradient(135deg, #FFF1F2 0%, #F43F5E 100%)">🌸 Rose</option>
+            <option value="linear-gradient(135deg, #F0FDF4 0%, #22C55E 100%)">🍃 Mint Green</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-grid full" style="margin-top:16px;">
+        <div class="fg">
+          <label>Description *</label>
+          <textarea id="fDesc" rows="3" placeholder="A brief description of what this product offers..."></textarea>
+        </div>
+      </div>
+
+      <div class="form-grid full" style="margin-top:16px;">
+        <div class="fg">
+          <label>Download Link * <span style="color:#EF4444">(Google Drive / Dropbox — "Anyone with link")</span></label>
+          <input id="fLink" type="url" placeholder="https://drive.google.com/file/d/..." />
+          <span class="hint">This link is emailed to customers ONLY after successful payment. Never shown publicly.</span>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;">
+        <div class="fg">
+          <label>What's Included (one item per row)</label>
+          <div class="includes-builder" id="includesBuilder">
+            <div class="include-row">
+              <input type="text" placeholder="e.g. 10-chapter PDF" />
+              <button class="btn-remove-inc" onclick="removeInclude(this)">✕</button>
+            </div>
+          </div>
+          <button class="btn-add-inc" onclick="addIncludeRow()" style="margin-top:8px;">+ Add item</button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-add" id="submitBtn" onclick="saveProduct()">➕ Add Product</button>
+        <button class="btn-clear" onclick="resetForm()">Clear</button>
+      </div>
+    </div>
+
+    <!-- PRODUCT LIST -->
+    <div class="products-section">
+      <h2>📦 Your Products</h2>
+      <div class="product-list" id="productList">
+        <div class="loading"><div class="spinner"></div>Loading products...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ─── AUTH ────────────────────────────────────────────────
+const ADMIN_PASSWORD = "Chandra 270880^%%";
+
+function login() {
+  const pw = document.getElementById('pwInput').value;
+  if (pw === ADMIN_PASSWORD) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+    sessionStorage.setItem('vf_admin', '1');
+    initAdmin();
+  } else {
+    document.getElementById('loginErr').style.display = 'block';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
+  }
+}
+
+function logout() {
+  sessionStorage.removeItem('vf_admin');
+  location.reload();
+}
+
+// Auto-login if session active
+if (sessionStorage.getItem('vf_admin') === '1') {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('adminPanel').style.display = 'block';
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+let _products = [];
+
+async function initAdmin() {
+  if (window._firebaseReady) {
+    loadProducts();
+  } else {
+    window.addEventListener('firebaseReady', loadProducts);
+  }
+}
+
+if (sessionStorage.getItem('vf_admin') === '1') {
+  if (window._firebaseReady) initAdmin();
+  else window.addEventListener('firebaseReady', initAdmin);
+}
+
+// ─── LOAD PRODUCTS ───────────────────────────────────────
+async function loadProducts() {
+  try {
+    const snap = await window._getDocs(window._colRef);
+    _products = [];
+    snap.forEach(d => _products.push({ id: d.id, ...d.data() }));
+    renderList();
+  } catch (err) {
+    console.error(err);
+    showToast('Error loading products: ' + err.message, true);
+  }
+}
+
+// ─── RENDER LIST ─────────────────────────────────────────
+function renderList() {
+  const list = document.getElementById('productList');
+  // Update stats
+  document.getElementById('sTot').textContent = _products.length;
+  document.getElementById('sEbook').textContent = _products.filter(p=>p.category==='ebook').length;
+  document.getElementById('sPoster').textContent = _products.filter(p=>p.category==='poster').length;
+  document.getElementById('sTemp').textContent = _products.filter(p=>p.category==='template').length;
+
+  if (_products.length === 0) {
+    list.innerHTML = `<div class="empty-state"><div class="icon">📭</div><p>No products yet. Add your first product above!</p></div>`;
+    return;
+  }
+
+  list.innerHTML = _products.map(p => `
+    <div class="product-row" id="row-${p.id}">
+      <div class="pr-emoji">${p.emoji || '📦'}</div>
+      <div class="pr-info">
+        <div class="pr-name">${p.name}</div>
+        <div class="pr-meta">${p.category} · ${p.badge || 'No badge'}</div>
+        <div class="pr-link">${p.downloadLink ? '🔗 ' + p.downloadLink : '⚠️ No download link set'}</div>
+      </div>
+      <div class="pr-price">₹${p.price}</div>
+      <div class="pr-actions">
+        <button class="btn-edit" onclick="editProduct('${p.id}')">✏️ Edit</button>
+        <button class="btn-delete" onclick="deleteProduct('${p.id}', '${p.name.replace(/'/g,"\\'")}')">🗑️ Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── INCLUDES BUILDER ─────────────────────────────────────
+function addIncludeRow(value = '') {
+  const builder = document.getElementById('includesBuilder');
+  const row = document.createElement('div');
+  row.className = 'include-row';
+  row.innerHTML = `<input type="text" placeholder="e.g. Instant download" value="${value}" /><button class="btn-remove-inc" onclick="removeInclude(this)">✕</button>`;
+  builder.appendChild(row);
+}
+
+function removeInclude(btn) {
+  const builder = document.getElementById('includesBuilder');
+  if (builder.children.length > 1) {
+    btn.parentElement.remove();
+  } else {
+    btn.previousElementSibling.value = '';
+  }
+}
+
+function getIncludes() {
+  return Array.from(document.querySelectorAll('#includesBuilder input'))
+    .map(i => i.value.trim()).filter(Boolean);
+}
+
+function setIncludes(arr) {
+  const builder = document.getElementById('includesBuilder');
+  builder.innerHTML = '';
+  if (!arr || arr.length === 0) {
+    addIncludeRow();
+  } else {
+    arr.forEach(v => addIncludeRow(v));
+  }
+}
+
+// ─── SAVE PRODUCT ─────────────────────────────────────────
+async function saveProduct() {
+  const name = document.getElementById('fName').value.trim();
+  const cat = document.getElementById('fCat').value;
+  const price = parseInt(document.getElementById('fPrice').value);
+  const emoji = document.getElementById('fEmoji').value.trim() || '📦';
+  const badge = document.getElementById('fBadge').value;
+  const thumbBg = document.getElementById('fThumb').value;
+  const desc = document.getElementById('fDesc').value.trim();
+  const downloadLink = document.getElementById('fLink').value.trim();
+  const includes = getIncludes();
+  const editId = document.getElementById('editId').value;
+
+  if (!name) { showToast('Please enter a product name.', true); return; }
+  if (!price || price < 1) { showToast('Please enter a valid price.', true); return; }
+  if (!desc) { showToast('Please enter a description.', true); return; }
+  if (!downloadLink) { showToast('Please enter a download link.', true); return; }
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.textContent = editId ? 'Saving...' : 'Adding...';
+
+  const data = { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes, id: editId || name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'') + '-' + Date.now() };
+
+  try {
+    if (editId) {
+      // Update
+      await window._updateDoc(window._doc(window._db, "products", editId), { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes });
+      showToast('✅ Product updated!');
+    } else {
+      // Add
+      await window._addDoc(window._colRef, { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes, createdAt: Date.now() });
+      showToast('✅ Product added!');
+    }
+    resetForm();
+    await loadProducts();
+  } catch (err) {
+    console.error(err);
+    showToast('Error: ' + err.message, true);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('formTitle').textContent = '➕ Add New Product';
+    document.getElementById('submitBtn').textContent = '➕ Add Product';
+    document.getElementById('editId').value = '';
+  }
+}
+
+// ─── EDIT PRODUCT ─────────────────────────────────────────
+function editProduct(id) {
+  const p = _products.find(x => x.id === id);
+  if (!p) return;
+
+  document.getElementById('formTitle').textContent = '✏️ Edit Product';
+  document.getElementById('submitBtn').textContent = '💾 Save Changes';
+  document.getElementById('editId').value = id;
+
+  document.getElementById('fName').value = p.name || '';
+  document.getElementById('fCat').value = p.category || 'ebook';
+  document.getElementById('fPrice').value = p.price || '';
+  document.getElementById('fEmoji').value = p.emoji || '';
+  document.getElementById('fBadge').value = p.badge || '';
+  document.getElementById('fThumb').value = p.thumbBg || '';
+  document.getElementById('fDesc').value = p.desc || '';
+  document.getElementById('fLink').value = p.downloadLink || '';
+  setIncludes(p.includes || []);
+
+  document.querySelector('.form-card').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ─── DELETE PRODUCT ───────────────────────────────────────
+async function deleteProduct(id, name) {
+  if (!confirm(`Delete "${name}"?\n\nThis cannot be undone.`)) return;
+  try {
+    await window._deleteDoc(window._doc(window._db, "products", id));
+    showToast('🗑️ Product deleted.');
+    await loadProducts();
+  } catch (err) {
+    showToast('Error: ' + err.message, true);
+  }
+}
+
+// ─── RESET FORM ───────────────────────────────────────────
+function resetForm() {
+  document.getElementById('fName').value = '';
+  document.getElementById('fCat').value = 'ebook';
+  document.getElementById('fPrice').value = '';
+  document.getElementById('fEmoji').value = '';
+  document.getElementById('fBadge').value = '';
+  document.getElementById('fThumb').value = 'linear-gradient(135deg, #1A0A2E 0%, #5B21B6 100%)';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fLink').value = '';
+  document.getElementById('editId').value = '';
+  setIncludes([]);
+  document.getElementById('formTitle').textContent = '➕ Add New Product';
+  document.getElementById('submitBtn').textContent = '➕ Add Product';
+  document.getElementById('submitBtn').disabled = false;
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (isError ? ' error' : '');
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
