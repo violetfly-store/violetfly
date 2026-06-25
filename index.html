@@ -9,6 +9,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyA_UZB3DcTWtV9XstyYB2OGtnLwwZ8KHW8",
@@ -22,11 +23,14 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const functions = getFunctions(app);
 
   window._db = db;
   window._collection = collection;
   window._getDocs = getDocs;
   window._onSnapshot = onSnapshot;
+  window._createOrder = httpsCallable(functions, "createOrder");
+  window._verifyAndDeliver = httpsCallable(functions, "verifyAndDeliver");
 
   // Load products on start
   window.addEventListener('DOMContentLoaded', () => {
@@ -48,8 +52,6 @@
   }
   window._loadProducts = loadProducts;
 </script>
-<!-- EmailJS -->
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 <!-- Razorpay -->
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
@@ -602,9 +604,6 @@
 <div class="toast" id="toast">✅ Payment successful! Check your email for the download link.</div>
 
 <script>
-// ─── EMAILJS INIT ───────────────────────────────────────
-emailjs.init("XIBOItrMCG3CzACCo");
-
 // ─── DEFAULT PRODUCTS (fallback if Firebase empty) ──────
 const DEFAULT_PRODUCTS = [
   {
@@ -785,7 +784,7 @@ function closeCheckout() {
 }
 
 // ─── PAYMENT ─────────────────────────────────────────────
-function startPayment() {
+async function startPayment() {
   const name = document.getElementById('custName').value.trim();
   const email = document.getElementById('custEmail').value.trim();
 
@@ -795,19 +794,46 @@ function startPayment() {
 
   const btn = document.getElementById('payBtn');
   btn.disabled = true;
-  btn.textContent = 'Opening payment...';
+  btn.textContent = 'Preparing payment...';
+
+  let order;
+  try {
+    const result = await window._createOrder({ productId: _currentProduct.id });
+    order = result.data;
+  } catch (err) {
+    console.error(err);
+    btn.disabled = false;
+    btn.innerHTML = '🔒 Pay Securely with Razorpay';
+    alert('Could not start payment. Please try again in a moment.');
+    return;
+  }
 
   const options = {
-    key: "rzp_test_T1ta5v0qC4oAmo",
-    amount: _currentProduct.price * 100, // paise
-    currency: "INR",
+    key: order.keyId,
+    order_id: order.orderId,
+    amount: order.amount,
+    currency: order.currency,
     name: "Violet Fly",
     description: _currentProduct.name,
     image: "https://em-content.zobj.net/source/apple/354/butterfly_1f98b.png",
     handler: function(response) {
-      // Payment successful!
+      // Razorpay confirms the charge here, but the link is only ever sent after
+      // our server independently verifies the payment signature — see verifyAndDeliver.
       closeCheckout();
-      sendEmail(name, email, _currentProduct, response.razorpay_payment_id);
+      showToast('Verifying your payment…');
+      window._verifyAndDeliver({
+        productId: _currentProduct.id,
+        orderId: response.razorpay_order_id,
+        paymentId: response.razorpay_payment_id,
+        signature: response.razorpay_signature,
+        customerName: name,
+        customerEmail: email
+      }).then(() => {
+        showToast('✅ Payment successful! Check your email for the download link.');
+      }).catch((err) => {
+        console.error(err);
+        showToast('Payment received — if your email doesn\'t arrive shortly, contact support with payment ID ' + response.razorpay_payment_id);
+      });
     },
     prefill: { name: name, email: email },
     notes: { product_id: _currentProduct.id, customer_email: email },
@@ -827,27 +853,8 @@ function startPayment() {
     alert('Payment failed. Please try again.\nError: ' + response.error.description);
   });
   rzp.open();
-}
-
-// ─── SEND EMAIL ───────────────────────────────────────────
-function sendEmail(customerName, customerEmail, product, paymentId) {
-  const templateParams = {
-    customer_name: customerName,
-    customer_email: customerEmail,
-    product_name: product.name,
-    amount: '₹' + product.price,
-    download_link: product.downloadLink || '#',
-    payment_id: paymentId
-  };
-
-  emailjs.send("service_ycp5qsf", "template_jgqfwsf", templateParams)
-    .then(() => {
-      showToast('✅ Payment successful! Check your email for the download link.');
-    })
-    .catch((err) => {
-      console.error("EmailJS error:", err);
-      showToast('✅ Payment received! Email delivery may take a few minutes.');
-    });
+  btn.disabled = false;
+  btn.innerHTML = '🔒 Pay Securely with Razorpay';
 }
 
 // ─── TOAST ───────────────────────────────────────────────
