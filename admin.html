@@ -225,9 +225,10 @@
     <div class="login-logo">🦋</div>
     <h2>Admin Panel</h2>
     <p>Violet Fly Store Management</p>
+    <input type="email" id="emailInput" placeholder="Enter admin email" style="margin-bottom:10px;" onkeydown="if(event.key==='Enter')login()" />
     <input type="password" id="pwInput" placeholder="Enter admin password" onkeydown="if(event.key==='Enter')login()" />
     <button class="btn-login" onclick="login()">Login →</button>
-    <p class="login-err" id="loginErr">❌ Incorrect password. Try again.</p>
+    <p class="login-err" id="loginErr">❌ Incorrect email or password. Try again.</p>
   </div>
 </div>
 
@@ -354,15 +355,15 @@
 
 <script>
 // ─── AUTH (Firebase Authentication — verified server-side, not in this file) ──
-// Set this to the email you create under Firebase Console → Authentication → Users.
-// This email is NOT a secret — only the password (which lives only in Firebase, never in this file) protects access.
-const ADMIN_EMAIL = "you@example.com"; // ← change to the email you create in Firebase Auth
 
 function login() {
+  const email = document.getElementById('emailInput').value.trim();
   const pw = document.getElementById('pwInput').value;
   const btn = document.querySelector('.btn-login');
+  if (!email) { alert('Please enter your email.'); return; }
+  if (!pw) { alert('Please enter your password.'); return; }
   btn.disabled = true; btn.textContent = 'Checking…';
-  window._signIn(window._auth, ADMIN_EMAIL, pw)
+  window._signIn(window._auth, email, pw)
     .catch(() => {
       document.getElementById('loginErr').style.display = 'block';
       document.getElementById('pwInput').value = '';
