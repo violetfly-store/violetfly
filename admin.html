@@ -10,8 +10,11 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import {
-    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc
+    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, updateDoc, setDoc, getDoc
   } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import {
+    getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyA_UZB3DcTWtV9XstyYB2OGtnLwwZ8KHW8",
@@ -26,6 +29,7 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   const colRef = collection(db, "products");
+  const auth = getAuth(app);
 
   // Expose to window
   window._db = db;
@@ -34,8 +38,25 @@
   window._deleteDoc = deleteDoc;
   window._doc = doc;
   window._updateDoc = updateDoc;
+  window._setDoc = setDoc;
+  window._getDoc = getDoc;
   window._getDocs = getDocs;
+  window._auth = auth;
+  window._signIn = signInWithEmailAndPassword;
+  window._signOut = signOut;
   window._firebaseReady = true;
+
+  // Real, server-verified login state (replaces the old hardcoded password check)
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      initAdmin();
+    } else {
+      document.getElementById('loginScreen').style.display = 'flex';
+      document.getElementById('adminPanel').style.display = 'none';
+    }
+  });
 
   window.dispatchEvent(new Event('firebaseReady'));
 </script>
@@ -332,38 +353,35 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ─── AUTH ────────────────────────────────────────────────
-const ADMIN_PASSWORD = "Chandra 270880^%%";
+// ─── AUTH (Firebase Authentication — verified server-side, not in this file) ──
+// Set this to the email you create under Firebase Console → Authentication → Users.
+// This email is NOT a secret — only the password (which lives only in Firebase, never in this file) protects access.
+const ADMIN_EMAIL = "violetflystore@gmail.com"; // ← change to the email you create in Firebase Auth
 
 function login() {
   const pw = document.getElementById('pwInput').value;
-  if (pw === ADMIN_PASSWORD) {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('adminPanel').style.display = 'block';
-    sessionStorage.setItem('vf_admin', '1');
-    initAdmin();
-  } else {
-    document.getElementById('loginErr').style.display = 'block';
-    document.getElementById('pwInput').value = '';
-    document.getElementById('pwInput').focus();
-  }
+  const btn = document.querySelector('.btn-login');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  window._signIn(window._auth, ADMIN_EMAIL, pw)
+    .catch(() => {
+      document.getElementById('loginErr').style.display = 'block';
+      document.getElementById('pwInput').value = '';
+      document.getElementById('pwInput').focus();
+    })
+    .finally(() => { btn.disabled = false; btn.textContent = 'Login →'; });
 }
 
 function logout() {
-  sessionStorage.removeItem('vf_admin');
-  location.reload();
-}
-
-// Auto-login if session active
-if (sessionStorage.getItem('vf_admin') === '1') {
-  document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('adminPanel').style.display = 'block';
+  window._signOut(window._auth);
 }
 
 // ─── INIT ─────────────────────────────────────────────────
 let _products = [];
+let _adminInited = false;
 
 async function initAdmin() {
+  if (_adminInited) return;
+  _adminInited = true;
   if (window._firebaseReady) {
     loadProducts();
   } else {
@@ -371,17 +389,24 @@ async function initAdmin() {
   }
 }
 
-if (sessionStorage.getItem('vf_admin') === '1') {
-  if (window._firebaseReady) initAdmin();
-  else window.addEventListener('firebaseReady', initAdmin);
-}
-
 // ─── LOAD PRODUCTS ───────────────────────────────────────
 async function loadProducts() {
   try {
     const snap = await window._getDocs(window._colRef);
-    _products = [];
-    snap.forEach(d => _products.push({ id: d.id, ...d.data() }));
+    const raw = [];
+    snap.forEach(d => raw.push({ id: d.id, ...d.data() }));
+
+    // The download link lives in a private subcollection (never public) —
+    // pull it in here so the admin UI can still show/edit it.
+    _products = await Promise.all(raw.map(async (p) => {
+      try {
+        const privSnap = await window._getDoc(window._doc(window._db, "products", p.id, "private", "data"));
+        return { ...p, downloadLink: privSnap.exists() ? (privSnap.data().downloadLink || '') : '' };
+      } catch {
+        return { ...p, downloadLink: '' };
+      }
+    }));
+
     renderList();
   } catch (err) {
     console.error(err);
@@ -475,18 +500,24 @@ async function saveProduct() {
   btn.disabled = true;
   btn.textContent = editId ? 'Saving...' : 'Adding...';
 
-  const data = { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes, id: editId || name.toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'') + '-' + Date.now() };
+  // Public fields only — the real download link is never stored on this document,
+  // so it can never be fetched by the public storefront.
+  const publicData = { name, category: cat, price, emoji, badge, thumbBg, desc, includes };
 
   try {
+    let productId = editId;
     if (editId) {
-      // Update
-      await window._updateDoc(window._doc(window._db, "products", editId), { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes });
-      showToast('✅ Product updated!');
+      await window._updateDoc(window._doc(window._db, "products", editId), publicData);
     } else {
-      // Add
-      await window._addDoc(window._colRef, { name, category: cat, price, emoji, badge, thumbBg, desc, downloadLink, includes, createdAt: Date.now() });
-      showToast('✅ Product added!');
+      const ref = await window._addDoc(window._colRef, { ...publicData, createdAt: Date.now() });
+      productId = ref.id;
     }
+
+    // Download link goes in a private subcollection. Only an authenticated admin (you, right now)
+    // or the verifyAndDeliver Cloud Function (after checking a real payment) can ever read it.
+    await window._setDoc(window._doc(window._db, "products", productId, "private", "data"), { downloadLink });
+
+    showToast(editId ? '✅ Product updated!' : '✅ Product added!');
     resetForm();
     await loadProducts();
   } catch (err) {
@@ -526,6 +557,7 @@ function editProduct(id) {
 async function deleteProduct(id, name) {
   if (!confirm(`Delete "${name}"?\n\nThis cannot be undone.`)) return;
   try {
+    await window._deleteDoc(window._doc(window._db, "products", id, "private", "data")).catch(() => {});
     await window._deleteDoc(window._doc(window._db, "products", id));
     showToast('🗑️ Product deleted.');
     await loadProducts();
